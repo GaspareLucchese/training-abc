@@ -1,0 +1,11 @@
+<odoo>
+    <menuitem id="root_level" name="Real Estate">
+        <menuitem id="level_advertisement" name="Advertisements">
+            <menuitem id="inner_level" name="Properties" action="estate.action_properties"></menuitem>
+        </menuitem>
+        <menuitem id="level_settings" name="Settings">
+            <menuitem id="level_type" name="Property Type" action="estate.action_type"></menuitem>
+            <menuitem id="level_tags" name="Property Tags" action="estate.action_tags"></menuitem>
+        </menuitem>
+    </menuitem>
+</odoo>
