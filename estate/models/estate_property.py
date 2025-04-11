@@ -1,9 +1,10 @@
-from odoo import models, fields
+from odoo import api, models, fields, _
+from odoo.exceptions import UserError
 
 class EstateProperty(models.Model):
     
     _name = "estate.property"
-    _description = "Vorrei solo funzionasse"
+    _description = "Property to sell/buy"
     
     #rivedere a che serve active (Esercizi 5)
     active = fields.Boolean(
@@ -53,7 +54,49 @@ class EstateProperty(models.Model):
         ]  
     )
     last_seen = fields.Datetime("Last Seen", default = fields.Datetime.now)
+    total_area = fields.Float(compute="_compute_total_area")
+    best_offer = fields.Float(compute="_compute_best_offer")
 
-    property_type_id = fields.Many2one("estate.property.type", string = "Tipo di Proprietà")
+    property_type_id = fields.Many2one("estate.property.type", string = "Property Type")
     offer_ids = fields.One2many("estate.property.offer","property_id",string = "Offerte")
     tag_ids = fields.Many2many("estate.property.tag", string = "Tags")
+    
+    @api.depends("living_area", "garden_area")
+    def _compute_total_area (self):
+        for rec in self:
+            rec.total_area = rec.garden_area + rec.living_area
+    
+    @api.depends("offer_ids.price")        
+    def _compute_best_offer(self):
+        for rec in self:
+            rec.best_offer = max(rec.offer_ids.mapped('price'), default=0.0)
+            
+    @api.onchange("garden")
+    def _onchange_garden(self):
+        for rec in self:
+            if rec.garden == False:
+                rec.garden_area = 0
+                
+    @api.onchange("date_avalability")
+    def _onchange_date_avalability(self):
+        for rec in self:
+            if (rec.date_avalability - fields.Date.today()).days <= 0:
+                return {
+                    "warning":
+                        {
+                            "title": _("Warning"),
+                            "message": _("The date is in the past, set a date after today")
+                        }
+                }
+                
+    def action_sell(self):
+        if self.state == "sold":
+            raise UserError(_("The property result alredy sold"))
+        self.state = "sold"
+        #aggiungere un compratore e un venditore
+        
+    def action_cancel(self):
+        if self.state == "sold" or self.state == "accepted":
+            raise UserError(_("The property result alredy sold"))
+        else:
+            self.state = "cancelled"
