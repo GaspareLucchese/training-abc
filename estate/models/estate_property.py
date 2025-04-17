@@ -1,16 +1,17 @@
 from odoo import api, models, fields, _
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 class EstateProperty(models.Model):
     
     _name = "estate.property"
     _description = "Property to sell/buy"
+    _order = "id desc"
+    _sql_constraints = [
+        ("positive_expected_price","CHECK(expected_price > 0)","The expected price should be positive"),
+        ("positive_selling_price","CHECK(selling_price > 0)","The selling price should be positive")
+    ]
     
-    #rivedere a che serve active (Esercizi 5)
-    active = fields.Boolean(
-        default=True, 
-        #non funziona l'invisible
-        invisible=True)
+    active = fields.Boolean(default=True)
     name = fields.Char(
         default = "Unknown", 
         required = True
@@ -31,11 +32,9 @@ class EstateProperty(models.Model):
     postcode = fields.Char()
     
     #non si capisce la consegna dei 3 mesi (Esercizio 5)
-    # _deafult_date è un metodo!
     def _default_date(self):
         return fields.Date.today()
-    
-    date_avalability = fields.Date(default = _default_date)
+    date_availability = fields.Date(default = _default_date)
     expected_price = fields.Float(required = True)
     selling_price = fields.Float(readonly = True)
     bedrooms = fields.Integer(default = 2)
@@ -57,6 +56,8 @@ class EstateProperty(models.Model):
     total_area = fields.Float(compute="_compute_total_area")
     best_offer = fields.Float(compute="_compute_best_offer")
 
+    salesman_id = fields.Many2one("res.users", string = "Salesman", required=True)
+    buyer_id = fields.Many2one("res.partner", string = "Buyer")
     property_type_id = fields.Many2one("estate.property.type", string = "Property Type")
     offer_ids = fields.One2many("estate.property.offer","property_id",string = "Offerte")
     tag_ids = fields.Many2many("estate.property.tag", string = "Tags")
@@ -77,10 +78,10 @@ class EstateProperty(models.Model):
             if rec.garden == False:
                 rec.garden_area = 0
                 
-    @api.onchange("date_avalability")
-    def _onchange_date_avalability(self):
+    @api.onchange("date_availability")
+    def _onchange_date_availability(self):
         for rec in self:
-            if (rec.date_avalability - fields.Date.today()).days <= 0:
+            if (rec.date_availability - fields.Date.today()).days < 0:
                 return {
                     "warning":
                         {
@@ -100,3 +101,16 @@ class EstateProperty(models.Model):
             raise UserError(_("The property result alredy sold"))
         else:
             self.state = "cancelled"
+    
+    @api.constrains("selling_price")        
+    def _check_constraint(self):
+        for estate in self:
+            if estate.selling_price < 5000:
+                raise ValidationError(_("The selling price is too low"))
+            
+            
+    def unlink(self):
+        if self.state == 'cancelled' or self.state == 'new':
+            return super().unlink()
+        else:
+            raise UserError(_("It's not possible to delete this property"))
